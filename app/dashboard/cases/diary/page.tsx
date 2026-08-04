@@ -203,7 +203,7 @@ export default function DiaryPage() {
         </div>
       ) : (
         /* Calendar View Placeholder */
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 flex flex-col items-center justify-center text-center shadow-sm min-h-[400px]">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-8 flex flex-col items-center justify-center text-center shadow-sm min-h-100">
           <CalendarIcon className="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4" />
           <h3 className="text-xl font-bold mb-2">Monthly Calendar View</h3>
           <p className="text-slate-500 dark:text-slate-400 max-w-md">
