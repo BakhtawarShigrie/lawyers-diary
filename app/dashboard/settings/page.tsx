@@ -4,377 +4,461 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppContext } from '@/app/context/AppContext';
 import { 
-  Cloud, 
-  ShieldCheck, 
-  Globe, 
-  Save, 
-  AlertTriangle, 
-  CheckCircle2, 
-  Database, 
-  RefreshCw,
-  X,
-  Lock,
-  Smartphone
+  Building2, MapPin, Scale, User, Mail, Phone, 
+  Save, ShieldCheck, Map, Briefcase, Bell, 
+  Lock, KeyRound, ShieldAlert, Unlock
 } from 'lucide-react';
 
-type Tab = 'backup' | 'jurisdiction' | 'security';
+// --- Types ---
+interface LawyerSettings {
+  firmName?: string;
+  lawyerName?: string;
+  email?: string;
+  phone?: string;
+  province?: string;
+  city?: string;
+  defaultCourt?: string;
+  practiceAreas?: string;
+  emailNotifs?: boolean;
+  smsNotifs?: boolean;
+  twoFactorAuth?: boolean;
+}
 
-export default function SettingsHubPage() {
+export default function UnifiedSettingsPage() {
   const { getStoredData, setStoredData, isHydrated } = useAppContext();
-
-  // --- States ---
-  const [activeTab, setActiveTab] = useState<Tab>('backup');
-  const [showWarningModal, setShowWarningModal] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // Backup States
-  const [isDriveConnected, setIsDriveConnected] = useState(false);
-  const [autoBackup, setAutoBackup] = useState(false);
-  const [lastBackup, setLastBackup] = useState('Never');
-  // Removed unused setUserEmail
-  const [userEmail] = useState('Shigrie@gmail.com'); 
-
-  // Jurisdiction States
-  const [country, setCountry] = useState('PK');
-  const [currency, setCurrency] = useState('PKR');
   
-  // Security States
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+  // Tabs order updated: profile -> security -> jurisdiction -> notifications
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'jurisdiction' | 'notifications'>('profile');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState('');
 
-  // --- Load Data from LocalStorage on Mount ---
+  // --- General Profile States ---
+  const [firmName, setFirmName] = useState('Adv. Shigrie Law Associates');
+  const [lawyerName, setLawyerName] = useState('Adv. Shigrie');
+  const [email, setEmail] = useState('Shigrie@gmail.com');
+  const [phone, setPhone] = useState('+92 300 1234567');
+  
+  // --- Jurisdiction States ---
+  const [province, setProvince] = useState('Punjab');
+  const [city, setCity] = useState('Lahore');
+  const [defaultCourt, setDefaultCourt] = useState('Lahore High Court');
+  const [practiceAreas, setPracticeAreas] = useState('Criminal Defense, Civil Litigation');
+
+  // --- Security States (Change Passcode) ---
+  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
+
+  // --- Security States (Forget Passcode) ---
+  const [isForgetOtpSent, setIsForgetOtpSent] = useState(false);
+  const [forgetOtp, setForgetOtp] = useState('');
+  const [forgetNewPassword, setForgetNewPassword] = useState('');
+  const [forgetConfirmPassword, setForgetConfirmPassword] = useState('');
+  const [forgetMessage, setForgetMessage] = useState('');
+
+  // --- Notification States ---
+  const [emailNotifs, setEmailNotifs] = useState(true);
+  const [smsNotifs, setSmsNotifs] = useState(false);
+
   useEffect(() => {
     if (isHydrated) {
-      // Wrapping state updates in setTimeout fixes the synchronous set-state-in-effect error
       const timer = setTimeout(() => {
-        const storedBackup = getStoredData<{ connected: boolean, auto: boolean, last: string }>('settings_backup');
-        const storedJurisdiction = getStoredData<{ country: string, currency: string }>('settings_jurisdiction');
-        const storedSecurity = getStoredData<{ tfa: boolean }>('settings_security');
-
-        if (storedBackup) {
-          setIsDriveConnected(storedBackup.connected);
-          setAutoBackup(storedBackup.auto);
-          setLastBackup(storedBackup.last);
-          // Show warning if auto-backup is disabled
-          if (!storedBackup.auto) setShowWarningModal(true);
-        } else {
-          // First time load: warn the user to enable backup
-          setShowWarningModal(true);
-        }
-
-        if (storedJurisdiction) {
-          setCountry(storedJurisdiction.country);
-          setCurrency(storedJurisdiction.currency);
-        }
+        const storedSettings = getStoredData<LawyerSettings>('lawyer_settings') || {};
         
-        if (storedSecurity) {
-          setTwoFactorAuth(storedSecurity.tfa);
-        }
+        if (storedSettings.firmName) setFirmName(storedSettings.firmName);
+        if (storedSettings.lawyerName) setLawyerName(storedSettings.lawyerName);
+        if (storedSettings.email) setEmail(storedSettings.email);
+        if (storedSettings.phone) setPhone(storedSettings.phone);
+        
+        if (storedSettings.province) setProvince(storedSettings.province);
+        if (storedSettings.city) setCity(storedSettings.city);
+        if (storedSettings.defaultCourt) setDefaultCourt(storedSettings.defaultCourt);
+        if (storedSettings.practiceAreas) setPracticeAreas(storedSettings.practiceAreas);
+        
+        if (storedSettings.twoFactorAuth !== undefined) setTwoFactorAuth(storedSettings.twoFactorAuth);
+        
+        if (storedSettings.emailNotifs !== undefined) setEmailNotifs(storedSettings.emailNotifs);
+        if (storedSettings.smsNotifs !== undefined) setSmsNotifs(storedSettings.smsNotifs);
       }, 0);
-
+      
       return () => clearTimeout(timer);
     }
   }, [isHydrated, getStoredData]);
 
-  // --- Handlers ---
-  const handleSaveAll = () => {
+  // Handle Main Settings Save
+  const handleSave = () => {
     setIsSaving(true);
-    
-    // Save to LocalStorage
-    setStoredData('settings_backup', { connected: isDriveConnected, auto: autoBackup, last: lastBackup });
-    setStoredData('settings_jurisdiction', { country, currency });
-    setStoredData('settings_security', { tfa: twoFactorAuth });
-
     setTimeout(() => {
+      setStoredData<LawyerSettings>('lawyer_settings', { 
+        firmName, lawyerName, email, phone, 
+        province, city, defaultCourt, practiceAreas,
+        emailNotifs, smsNotifs, twoFactorAuth
+      });
       setIsSaving(false);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      setSaveMessage('All settings saved successfully!');
+      setTimeout(() => setSaveMessage(''), 3000);
+    }, 800);
+  };
+
+  // --- 1. Normal Change Passcode Logic (No OTP) ---
+  const handleChangePassword = () => {
+    if (!currentPassword) {
+      setPasswordMessage('Please enter your current passcode.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('New passcodes do not match!');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMessage('Passcode must be at least 6 characters.');
+      return;
+    }
+    
+    // Simulate direct save
+    setPasswordMessage('Passcode updated successfully!');
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setTimeout(() => setPasswordMessage(''), 4000);
+  };
+
+  // --- 2. Forget Passcode Logic (With OTP) ---
+  const handleSendForgetOtp = () => {
+    setForgetMessage('');
+    setIsForgetOtpSent(true);
+  };
+
+  const handleVerifyForgetOtp = () => {
+    if (forgetOtp.length < 4) {
+      setForgetMessage('Please enter a valid OTP.');
+      return;
+    }
+    if (forgetNewPassword !== forgetConfirmPassword) {
+      setForgetMessage('New passcodes do not match!');
+      return;
+    }
+    if (forgetNewPassword.length < 6) {
+      setForgetMessage('Passcode must be at least 6 characters.');
+      return;
+    }
+
+    // Simulate OTP Verification & Save
+    setTimeout(() => {
+      setIsForgetOtpSent(false);
+      setForgetOtp('');
+      setForgetNewPassword('');
+      setForgetConfirmPassword('');
+      setForgetMessage('Passcode recovered and updated successfully!');
+      setTimeout(() => setForgetMessage(''), 4000);
     }, 1000);
   };
 
-  const handleManualBackup = () => {
-    if (!isDriveConnected) {
-      alert("Please connect Google Drive first!");
-      return;
-    }
-    setLastBackup('Just now');
-    setStoredData('settings_backup', { connected: isDriveConnected, auto: autoBackup, last: 'Just now' });
-    alert("Data successfully backed up to Google Drive!");
-  };
-
-  const handleConnectDrive = () => {
-    setIsDriveConnected(!isDriveConnected);
-    setStoredData('settings_backup', { connected: !isDriveConnected, auto: autoBackup, last: lastBackup });
-  };
-
-  const handleAutoBackupToggle = () => {
-    const newVal = !autoBackup;
-    setAutoBackup(newVal);
-    setStoredData('settings_backup', { connected: isDriveConnected, auto: newVal, last: lastBackup });
-    if (newVal) setShowWarningModal(false);
-  };
-
-  if (!isHydrated) return null; // Prevent SSR mismatch
+  if (!isHydrated) return null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 text-slate-900 dark:text-slate-100 pb-24">
       
-      {/* --- Auto Backup Warning Modal --- */}
-      <AnimatePresence>
-        {showWarningModal && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+      <div className="mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Platform Settings</h1>
+        <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your firm profile, security, jurisdiction, and notifications.</p>
+      </div>
+
+      <div className="max-w-5xl flex flex-col md:flex-row gap-8">
+        
+        {/* --- Sidebar Tabs (Reordered) --- */}
+        <div className="w-full md:w-64 shrink-0 space-y-2">
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${activeTab === 'profile' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'}`}
           >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} 
-              animate={{ scale: 1, y: 0 }} 
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 relative border border-orange-200 dark:border-orange-900/50"
-            >
-              <button 
-                onClick={() => setShowWarningModal(false)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              
-              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full flex items-center justify-center mb-4 mx-auto">
-                <AlertTriangle className="w-8 h-8" />
-              </div>
-              <h2 className="text-xl font-bold text-center mb-2">Automatic Backup is OFF!</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 text-center mb-6">
-                Aap ka client data, cases, aur documents risk par hain. App delete hone ya phone change karne par data zaya ho sakta hai. Baraye meharbani Google Drive backup on karein.
-              </p>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setShowWarningModal(false)}
-                  className="flex-1 py-2.5 rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors"
-                >
-                  Later
-                </button>
-                <button 
-                  onClick={() => {
-                    handleAutoBackupToggle();
-                  }}
-                  className="flex-1 py-2.5 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 transition-colors shadow-md"
-                >
-                  Enable Backup
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* --- Page Header --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">App Settings Hub</h1>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage backups, jurisdiction, and security preferences.</p>
-        </div>
-        <button 
-          onClick={handleSaveAll}
-          disabled={isSaving}
-          className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm flex items-center justify-center gap-2 ${
-            saveSuccess 
-              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-              : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70'
-          }`}
-        >
-          {isSaving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : saveSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-          {isSaving ? 'Saving...' : saveSuccess ? 'Settings Saved!' : 'Save All Changes'}
-        </button>
-      </div>
-
-      {/* --- Tabs Navigation --- */}
-      <div className="flex overflow-x-auto space-x-2 bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-2xl mb-8 scrollbar-hide">
-        <button 
-          onClick={() => setActiveTab('backup')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'backup' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
-        >
-          <Cloud className="w-4 h-4" /> Data & Backup
-        </button>
-        <button 
-          onClick={() => setActiveTab('jurisdiction')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'jurisdiction' ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
-        >
-          <Globe className="w-4 h-4" /> Jurisdiction
-        </button>
-        <button 
-          onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'security' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}
-        >
-          <ShieldCheck className="w-4 h-4" /> Security
-        </button>
-      </div>
-
-      {/* --- Tab Content --- */}
-      <div className="max-w-4xl">
-        <AnimatePresence mode="wait">
+            <User className="w-5 h-5" /> General Profile
+          </button>
           
-          {/* 1. BACKUP TAB */}
-          {activeTab === 'backup' && (
-            <motion.div 
-              key="backup"
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
-            >
-              {/* Google Drive Connection Card */}
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8">
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <h2 className="text-xl font-bold mb-1 flex items-center gap-2">
-                      <Cloud className="w-6 h-6 text-blue-500" /> Google Drive Cloud Sync
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">Securely store your local data to the cloud.</p>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${isDriveConnected ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
-                    {isDriveConnected ? 'Connected' : 'Disconnected'}
-                  </span>
-                </div>
+          <button 
+            onClick={() => setActiveTab('security')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${activeTab === 'security' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'}`}
+          >
+            <Lock className="w-5 h-5" /> Security
+          </button>
 
-                <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
-                  <div className="w-12 h-12 bg-white dark:bg-slate-950 rounded-full shadow-sm flex items-center justify-center p-2.5 shrink-0">
-                    <svg viewBox="0 0 87.3 87.3"><path d="M58 87.3L29 37.1h58L58 87.3z" fill="#0066da"/><path d="M58 87.3L0 87.3l29-50.2 58 50.2z" fill="#00ac47"/><path d="M58 0L29 50.2H0L29 0h29z" fill="#ea4335"/><path d="M58 0L87.3 50.2H29L0 0h58z" fill="#00832d"/><path d="M87.3 50.2L58 100.4h-58l29-50.2h58z" fill="#2684fc"/><path d="M29 100.4L0 50.2 29 0l29 50.2-29 50.2z" fill="#ffba00"/></svg>
-                  </div>
-                  <div className="flex-1 text-center sm:text-left">
-                    <p className="font-bold text-slate-900 dark:text-white">
-                      {isDriveConnected ? userEmail : 'No Account Linked'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">App data will be stored in an isolated, hidden folder.</p>
-                  </div>
-                  <button 
-                    onClick={handleConnectDrive}
-                    className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all shadow-sm ${isDriveConnected ? 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-                  >
-                    {isDriveConnected ? 'Disconnect' : 'Connect Drive'}
-                  </button>
-                </div>
-              </div>
+          <button 
+            onClick={() => setActiveTab('jurisdiction')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${activeTab === 'jurisdiction' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'}`}
+          >
+            <Scale className="w-5 h-5" /> Jurisdiction & Courts
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('notifications')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${activeTab === 'notifications' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800'}`}
+          >
+            <Bell className="w-5 h-5" /> Notifications
+          </button>
+        </div>
 
-              {/* Backup Settings */}
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8">
-                <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-                  <Database className="w-5 h-5 text-slate-500" /> Backup Preferences
-                </h2>
+        {/* --- Settings Content Area --- */}
+        <div className="flex-1">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            
+            <div className="p-6 md:p-8 min-h-100 flex-1">
+              <AnimatePresence mode="wait">
                 
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white">Automatic Daily Backup</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Silently sync data to Google Drive every 24 hours.</p>
-                    </div>
-                    <button 
-                      onClick={handleAutoBackupToggle}
-                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${autoBackup ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
-                    >
-                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${autoBackup ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-
-                  <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-slate-900 dark:text-white">Manual Backup</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Last successful backup: <strong className="text-slate-700 dark:text-slate-200">{lastBackup}</strong></p>
-                    </div>
-                    <button 
-                      onClick={handleManualBackup}
-                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-100 dark:hover:bg-white dark:text-slate-900 font-bold text-sm rounded-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw className="w-4 h-4" /> Backup Now
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* 2. JURISDICTION TAB */}
-          {activeTab === 'jurisdiction' && (
-            <motion.div 
-              key="jurisdiction"
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8"
-            >
-              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-                <Globe className="w-5 h-5 text-purple-500" /> Regional & Law Settings
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Country of Practice</label>
-                  <select 
-                    value={country}
-                    onChange={(e) => setCountry(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none transition-all appearance-none"
+                {/* 1. Profile Tab */}
+                {activeTab === 'profile' && (
+                  <motion.div 
+                    key="profile"
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
                   >
-                    <option value="PK">Pakistan (Islamic Republic of Pakistan)</option>
-                    <option value="UAE">United Arab Emirates (UAE)</option>
-                    <option value="UK">United Kingdom (UK)</option>
-                    <option value="US">United States of America (US)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Default Currency</label>
-                  <select 
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-purple-500 outline-none transition-all appearance-none"
-                  >
-                    <option value="PKR">Pakistani Rupee (PKR)</option>
-                    <option value="AED">UAE Dirham (AED)</option>
-                    <option value="GBP">British Pound (GBP)</option>
-                    <option value="USD">US Dollar (USD)</option>
-                  </select>
-                </div>
-              </div>
-            </motion.div>
-          )}
+                    <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Building2 className="w-5 h-5 text-blue-500" /> Firm Details</h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Law Firm Name</label>
+                        <input type="text" value={firmName} onChange={e => setFirmName(e.target.value)} className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Primary Lawyer Name</label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <input type="text" value={lawyerName} onChange={e => setLawyerName(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Email Address</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Phone Number</label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
-          {/* 3. SECURITY TAB */}
-          {activeTab === 'security' && (
-            <motion.div 
-              key="security"
-              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 md:p-8"
-            >
-              <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-emerald-500" /> Account Security
-              </h2>
-              
-              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg">
-                    <Smartphone className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-sm text-slate-900 dark:text-white">Two-Factor Authentication (2FA)</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Require OTP code for logging into the app.</p>
-                  </div>
+                {/* 2. Security Tab (Reordered to 2nd position) */}
+                {activeTab === 'security' && (
+                  <motion.div 
+                    key="security"
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                    className="space-y-10"
+                  >
+                    {/* A. Change Passcode (Direct, no OTP) */}
+                    <div>
+                      <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><KeyRound className="w-5 h-5 text-emerald-500" /> Change Passcode</h2>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Current Passcode</label>
+                          <input type="password" placeholder="Enter current passcode" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Passcode</label>
+                          <input type="password" placeholder="Min 6 characters" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirm Passcode</label>
+                          <input type="password" placeholder="Repeat new passcode" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500" />
+                        </div>
+                        <div className="md:col-span-2 flex items-center justify-between mt-2">
+                          <span className={`text-sm font-semibold ${passwordMessage.includes('success') ? 'text-emerald-500' : 'text-red-500'}`}>{passwordMessage}</span>
+                          <button type="button" onClick={handleChangePassword} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-sm">
+                            Update Passcode
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* B. Forget Passcode (With OTP) */}
+                    <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
+                      <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Unlock className="w-5 h-5 text-orange-500" /> Forget Passcode?</h2>
+                      
+                      {!isForgetOtpSent ? (
+                        <div className="flex flex-col sm:flex-row items-center justify-between p-6 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30 rounded-2xl gap-4">
+                          <div>
+                            <h3 className="font-bold text-orange-900 dark:text-orange-400">Reset via Email Verification</h3>
+                            <p className="text-sm text-orange-800 dark:text-orange-300 mt-1">If you have forgotten your current passcode, we can send a One-Time Password (OTP) to <strong>{email}</strong> to help you reset it safely.</p>
+                            {forgetMessage && <p className="text-emerald-600 dark:text-emerald-400 font-bold text-sm mt-2">{forgetMessage}</p>}
+                          </div>
+                          <button type="button" onClick={handleSendForgetOtp} className="w-full sm:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-sm shrink-0">
+                            Send OTP
+                          </button>
+                        </div>
+                      ) : (
+                        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-6 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-6">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-full text-orange-600 dark:text-orange-400">
+                              <ShieldAlert className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-white">OTP sent to {email}</p>
+                              <p className="text-xs text-slate-500">Please enter the 6-digit code and your new passcode below.</p>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Enter OTP</label>
+                              <input type="text" placeholder="123456" value={forgetOtp} onChange={e => setForgetOtp(e.target.value)} className="w-full md:w-1/2 px-4 py-3 tracking-widest font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">New Passcode</label>
+                              <input type="password" placeholder="Min 6 characters" value={forgetNewPassword} onChange={e => setForgetNewPassword(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Confirm Passcode</label>
+                              <input type="password" placeholder="Repeat new passcode" value={forgetConfirmPassword} onChange={e => setForgetConfirmPassword(e.target.value)} className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500" />
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                            <span className="text-sm font-semibold text-red-500">{forgetMessage}</span>
+                            <div className="flex gap-3">
+                              <button type="button" onClick={() => setIsForgetOtpSent(false)} className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl transition-all">Cancel</button>
+                              <button type="button" onClick={handleVerifyForgetOtp} className="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all shadow-sm">Verify & Reset</button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* C. Two-Step Authentication */}
+                    <div className="pt-8 border-t border-slate-200 dark:border-slate-800">
+                      <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Lock className="w-5 h-5 text-blue-500" /> Two-Step Authentication</h2>
+                      
+                      <label className="flex items-center justify-between p-5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                        <div className="pr-4">
+                          <p className="font-bold text-sm text-slate-900 dark:text-white">Enable 2FA (Recommended)</p>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">Add an extra layer of security to your account. When logging in, you&apos;ll need to provide an OTP sent to your registered email.</p>
+                        </div>
+                        <div className="relative inline-block w-12 shrink-0 align-middle select-none transition duration-200 ease-in">
+                          <input type="checkbox" checked={twoFactorAuth} onChange={() => setTwoFactorAuth(!twoFactorAuth)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 dark:border-slate-600 checked:right-0 checked:border-blue-600 transition-all" />
+                          <label className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 dark:bg-slate-700 cursor-pointer transition-colors"></label>
+                        </div>
+                      </label>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* 3. Jurisdiction Tab (Reordered to 3rd position) */}
+                {activeTab === 'jurisdiction' && (
+                  <motion.div 
+                    key="jurisdiction"
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Scale className="w-5 h-5 text-purple-500" /> Jurisdiction Defaults</h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Province / State</label>
+                        <div className="relative">
+                          <Map className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <select value={province} onChange={e => setProvince(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none appearance-none focus:ring-2 focus:ring-purple-500">
+                            <option value="Punjab">Punjab</option>
+                            <option value="Sindh">Sindh</option>
+                            <option value="KPK">KPK</option>
+                            <option value="Balochistan">Balochistan</option>
+                            <option value="Islamabad Capital Territory">Islamabad Capital Territory</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">City</label>
+                        <div className="relative">
+                          <MapPin className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <input type="text" value={city} onChange={e => setCity(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500" />
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Default Court System</label>
+                        <div className="relative">
+                          <Building2 className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <select value={defaultCourt} onChange={e => setDefaultCourt(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none appearance-none focus:ring-2 focus:ring-purple-500">
+                            <option value="Lahore High Court">Lahore High Court</option>
+                            <option value="Islamabad High Court">Islamabad High Court</option>
+                            <option value="Sindh High Court">Sindh High Court</option>
+                            <option value="District & Sessions Court">District & Sessions Court</option>
+                            <option value="Supreme Court of Pakistan">Supreme Court of Pakistan</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Key Practice Areas</label>
+                        <div className="relative">
+                          <Briefcase className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+                          <input type="text" value={practiceAreas} onChange={e => setPracticeAreas(e.target.value)} placeholder="e.g. Corporate Law, Civil Litigation" className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500" />
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* 4. Notifications Tab */}
+                {activeTab === 'notifications' && (
+                  <motion.div 
+                    key="notifications"
+                    initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <h2 className="text-xl font-bold flex items-center gap-2 mb-6"><Bell className="w-5 h-5 text-orange-500" /> Alert Preferences</h2>
+                    
+                    <div className="space-y-4">
+                      <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                        <div>
+                          <p className="font-bold text-sm">Email Notifications</p>
+                          <p className="text-xs text-slate-500">Receive hearing reminders and daily agenda via email.</p>
+                        </div>
+                        <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                          <input type="checkbox" checked={emailNotifs} onChange={() => setEmailNotifs(!emailNotifs)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 dark:border-slate-600 checked:right-0 checked:border-blue-600" />
+                          <label className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 dark:bg-slate-700 cursor-pointer"></label>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                        <div>
+                          <p className="font-bold text-sm">SMS Alerts</p>
+                          <p className="text-xs text-slate-500">Get immediate text messages for urgent client updates.</p>
+                        </div>
+                        <div className="relative inline-block w-12 mr-2 align-middle select-none transition duration-200 ease-in">
+                          <input type="checkbox" checked={smsNotifs} onChange={() => setSmsNotifs(!smsNotifs)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-300 dark:border-slate-600 checked:right-0 checked:border-blue-600" />
+                          <label className="toggle-label block overflow-hidden h-6 rounded-full bg-slate-300 dark:bg-slate-700 cursor-pointer"></label>
+                        </div>
+                      </label>
+                    </div>
+                  </motion.div>
+                )}
+
+              </AnimatePresence>
+            </div>
+
+            {/* --- Save Footer (Hide on Security Tab to prevent confusion with password buttons) --- */}
+            {activeTab !== 'security' && (
+              <div className="p-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+                <div className="h-6">
+                  {saveMessage && (
+                    <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-emerald-600 dark:text-emerald-400 font-bold text-sm flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5" /> {saveMessage}
+                    </motion.span>
+                  )}
                 </div>
-                <button 
-                  onClick={() => setTwoFactorAuth(!twoFactorAuth)}
-                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none shrink-0 ${twoFactorAuth ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'}`}
-                >
-                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${twoFactorAuth ? 'translate-x-6' : 'translate-x-1'}`} />
+                <button type="button" onClick={handleSave} disabled={isSaving} className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70">
+                  <Save className="w-4 h-4" /> {isSaving ? 'Saving Changes...' : 'Save Settings'}
                 </button>
               </div>
-
-              <div className="mt-6 p-4 border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex gap-3">
-                <Lock className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-800 dark:text-blue-300/90 leading-relaxed">
-                  <strong>Local-First Encryption:</strong> Aap ka tamam data (Cases, Clients, Documents) locally aap ke device par AES-256 standards ke tehat encrypted rehta hai. Sirf Backup ke waqt yeh Google Drive par sync hota hai.
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-        </AnimatePresence>
+            )}
+            
+          </div>
+        </div>
       </div>
     </div>
   );

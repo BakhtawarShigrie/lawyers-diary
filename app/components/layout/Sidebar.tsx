@@ -30,7 +30,8 @@ const navLinks = [
   { name: 'AI Assistant', href: '/dashboard/ai-assistant', icon: Bot },
   { name: 'Meetings', href: '/dashboard/meetings', icon: Video },
   { name: 'Team', href: '/dashboard/team', icon: ShieldUser },
-  { name: 'Settings', href: '/dashboard/settings/jurisdiction', icon: Settings },
+  // Settings ka route theek kar diya gaya hai
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 // Extracted Component to prevent re-creation during render (fixes static-components error)
@@ -78,14 +79,19 @@ const SidebarContent = ({ pathname, closeSidebar }: { pathname: string, closeSid
       })}
     </nav>
     
+    {/* Cloud Backup Status (Ab clickable Link ban gaya hai) */}
     <div className="p-4 border-t border-slate-800">
-      <div className="bg-slate-800 p-4 rounded-xl">
-        <p className="text-xs text-slate-400 mb-2">Cloud Backup Status</p>
+      <Link 
+        href="/dashboard/backup" 
+        onClick={closeSidebar}
+        className="block bg-slate-800 p-4 rounded-xl hover:bg-slate-700 transition-colors cursor-pointer group"
+      >
+        <p className="text-xs text-slate-400 mb-2 group-hover:text-slate-300">Cloud Backup Status</p>
         <div className="flex items-center gap-2 text-sm text-emerald-400 font-semibold">
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
           Synced to Drive
         </div>
-      </div>
+      </Link>
     </div>
   </div>
 );
