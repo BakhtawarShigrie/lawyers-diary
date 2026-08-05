@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion, Variants } from 'framer-motion';
+import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { useAppContext } from '@/app/context/AppContext';
 import { 
   Briefcase, 
@@ -14,7 +14,9 @@ import {
   FileText, 
   Bot,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert,
+  Cloud
 } from 'lucide-react';
 
 // --- Types ---
@@ -48,19 +50,28 @@ interface HearingItem {
 }
 
 export default function DashboardPage() {
-  const { getStoredData, isHydrated } = useAppContext();
+  const { getStoredData, setStoredData, isHydrated } = useAppContext();
 
   // Dashboard Stats States
   const [totalCases, setTotalCases] = useState(0);
   const [monthlyRevenue, setMonthlyRevenue] = useState(0);
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [upcomingHearings, setUpcomingHearings] = useState<HearingItem[]>([]);
+  
+  // Backup Alert State
+  const [showBackupAlert, setShowBackupAlert] = useState(false);
 
   // Fetch data from LocalStorage on mount
   useEffect(() => {
     if (isHydrated) {
       const timer = setTimeout(() => {
         
+        // --- Check Auto Backup Status ---
+        const isAutoBackupOn = getStoredData<boolean>('auto_backup_enabled');
+        if (!isAutoBackupOn) {
+          setShowBackupAlert(true);
+        }
+
         // 1. Fetch Cases (Active Cases Calculation)
         const storedCases = getStoredData<CaseItem[]>('lawyer_cases') || [];
         const activeCases = storedCases.filter(c => c.status?.toLowerCase() !== 'closed').length;
@@ -121,6 +132,11 @@ export default function DashboardPage() {
     }
   }, [isHydrated, getStoredData]);
 
+  const handleEnableBackup = () => {
+    setStoredData('auto_backup_enabled', true);
+    setShowBackupAlert(false);
+  };
+
   // Framer Motion Animation Variants
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -142,8 +158,51 @@ export default function DashboardPage() {
   if (!isHydrated) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 text-slate-900 dark:text-slate-100 pb-24">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 text-slate-900 dark:text-slate-100 pb-24 relative">
       
+      {/* --- AUTOMATIC BACKUP WARNING MODAL --- */}
+      <AnimatePresence>
+        {showBackupAlert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 max-w-lg w-full rounded-3xl shadow-2xl border border-red-200 dark:border-red-900/50 overflow-hidden"
+            >
+              <div className="bg-red-50 dark:bg-red-900/20 p-6 flex flex-col items-center text-center border-b border-red-100 dark:border-red-900/30">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/50 rounded-full flex items-center justify-center mb-4 text-red-600 dark:text-red-400">
+                  <ShieldAlert className="w-8 h-8" />
+                </div>
+                <h2 className="text-2xl font-black text-red-700 dark:text-red-400 mb-2">Data Loss Warning!</h2>
+                <p className="text-red-600 dark:text-red-300 font-medium text-sm">
+                  Your Automatic Cloud Backup is currently disabled.
+                </p>
+              </div>
+              <div className="p-6">
+                <p className="text-slate-600 dark:text-slate-300 text-sm mb-6 leading-relaxed text-center">
+                  Protect your sensitive case files, client details, and billing records. Enable automatic backup to securely sync your data to your connected Google Drive every night at <strong>12:00 AM</strong>.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button 
+                    onClick={() => setShowBackupAlert(false)}
+                    className="flex-1 py-3 px-4 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    I&apos;ll Risk It (Skip)
+                  </button>
+                  <button 
+                    onClick={handleEnableBackup}
+                    className="flex-1 py-3 px-4 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Cloud className="w-5 h-5" /> Enable Backup Now
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* --- Header --- */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
