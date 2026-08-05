@@ -20,7 +20,8 @@ import {
 // --- Types ---
 interface CaseItem {
   id: string;
-  title: string;
+  title?: string;
+  clientName?: string;
   status: string;
 }
 
@@ -28,6 +29,15 @@ interface InvoiceItem {
   id: string;
   amount: number;
   status: string;
+  date: string; // YYYY-MM-DD
+}
+
+interface AppointmentItem {
+  id: string;
+  clientName: string;
+  date: string;
+  time: string;
+  type: string;
 }
 
 interface HearingItem {
@@ -50,38 +60,68 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isHydrated) {
       const timer = setTimeout(() => {
-        // Fetch Cases
-        const storedCases = getStoredData<CaseItem[]>('lawyer_cases') || [];
-        const activeCases = storedCases.filter(c => c.status !== 'Closed').length;
-        setTotalCases(activeCases > 0 ? activeCases : 24); // Fallback to 24 for demo if empty
-
-        // Fetch Invoices / Revenue
-        const storedInvoices = getStoredData<InvoiceItem[]>('lawyer_invoices') || [];
-        const revenue = storedInvoices.filter(i => i.status === 'Paid').reduce((acc, curr) => acc + curr.amount, 0);
-        const pending = storedInvoices.filter(i => i.status === 'Pending').length;
         
-        setMonthlyRevenue(revenue > 0 ? revenue : 1250000); // Fallback demo data
-        setPendingInvoices(pending > 0 ? pending : 5); // Fallback demo data
+        // 1. Fetch Cases (Active Cases Calculation)
+        const storedCases = getStoredData<CaseItem[]>('lawyer_cases') || [];
+        const activeCases = storedCases.filter(c => c.status?.toLowerCase() !== 'closed').length;
+        setTotalCases(activeCases); // NO Dummy Data
 
-        // Fetch Hearings
-        const storedHearings = getStoredData<HearingItem[]>('lawyer_hearings') || [];
-        if (storedHearings.length > 0) {
-          setUpcomingHearings(storedHearings.slice(0, 3));
-        } else {
-          // Fallback demo data
-          setUpcomingHearings([
-            { id: 'H1', caseTitle: 'State vs. Ahmed Ali', date: 'Tomorrow, 10:00 AM', court: 'High Court, Court Room 3' },
-            { id: 'H2', caseTitle: 'XYZ Corp Property Dispute', date: 'Oct 18, 2026', court: 'Civil Court, Lahore' },
-            { id: 'H3', caseTitle: 'Family Mediation - Fatima Bibi', date: 'Oct 20, 2026', court: 'Family Court, Room 12' },
-          ]);
-        }
+        // 2. Fetch Invoices / Billing (Revenue & Pending)
+        const storedInvoices = getStoredData<InvoiceItem[]>('lawyer_billing') || getStoredData<InvoiceItem[]>('lawyer_invoices') || [];
+        
+        let rev = 0;
+        let pend = 0;
+        const currentMonth = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+
+        storedInvoices.forEach(inv => {
+          if (inv.status?.toLowerCase() === 'pending' || inv.status?.toLowerCase() === 'unpaid') {
+            pend++;
+          }
+          if (inv.status?.toLowerCase() === 'paid' && inv.date) {
+            const invDate = new Date(inv.date);
+            // Only add revenue if the paid invoice belongs to the current month
+            if (invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear) {
+              rev += Number(inv.amount) || 0;
+            }
+          }
+        });
+        
+        setMonthlyRevenue(rev);
+        setPendingInvoices(pend);
+
+        // 3. Fetch Appointments / Hearings
+        const storedAppointments = getStoredData<AppointmentItem[]>('lawyer_appointments') || [];
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        const validHearings = storedAppointments
+          .filter(apt => {
+            if (!apt.date) return false;
+            const aptDate = new Date(apt.date).getTime();
+            // Filter appointments from today up to next 7 days
+            return aptDate >= today.getTime() && aptDate <= nextWeek.getTime();
+          })
+          .map(apt => ({
+            id: apt.id,
+            caseTitle: apt.clientName || 'Client Consultation',
+            date: `${apt.date} ${apt.time ? '| ' + apt.time : ''}`,
+            court: apt.type || 'Meeting'
+          }))
+          // Sort by nearest date
+          .sort((a, b) => new Date(a.date.split(' |')[0]).getTime() - new Date(b.date.split(' |')[0]).getTime());
+
+        setUpcomingHearings(validHearings);
+
       }, 0);
       
       return () => clearTimeout(timer);
     }
   }, [isHydrated, getStoredData]);
 
-  // Framer Motion Animation Variants with correct typings
+  // Framer Motion Animation Variants
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
     show: {
@@ -99,7 +139,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (!isHydrated) return null; // Prevent SSR Hydration mismatch
+  if (!isHydrated) return null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 text-slate-900 dark:text-slate-100 pb-24">
@@ -246,14 +286,15 @@ export default function DashboardPage() {
           <motion.div variants={itemVariants} className="space-y-4">
             <h2 className="text-xl font-bold flex items-center justify-between">
               <span className="flex items-center gap-2"><Clock className="w-5 h-5 text-blue-600" /> Agenda</span>
-              <Link href="/dashboard/cases/diary" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">View Diary</Link>
+              <Link href="/dashboard/appointments" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">View Calendar</Link>
             </h2>
             
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-5 space-y-4">
-              {upcomingHearings.map((hearing, idx) => (
-                <div key={hearing.id} className={`group ${idx !== upcomingHearings.length - 1 ? 'border-b border-slate-100 dark:border-slate-800 pb-4' : ''}`}>
+              {/* Only show top 4 in agenda to keep UI clean, but card stat shows true length */}
+              {upcomingHearings.slice(0, 4).map((hearing, idx) => (
+                <div key={hearing.id} className={`group ${idx !== Math.min(upcomingHearings.length, 4) - 1 ? 'border-b border-slate-100 dark:border-slate-800 pb-4' : ''}`}>
                   <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1">{hearing.date}</p>
-                  <Link href={`/dashboard/cases/${hearing.id}`} className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
+                  <Link href={`/dashboard/appointments`} className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
                     {hearing.caseTitle}
                   </Link>
                   <p className="text-xs text-slate-500 flex items-center gap-1 mt-1.5">
